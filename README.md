@@ -1,6 +1,6 @@
 # Sentryvane: defensive triage and bounded decoys
 
-**Current version: 0.1.4, released 2026-11-01.** Sentryvane is the current version of the
+**Current version: 0.1.5, released 2026-11-01.** Sentryvane is the current version of the
 CloudSentry line. Earlier CloudSentry releases stay in this repository's history and the
 original upstream project remains at [@HuginnsHammer/CloudSentry](https://github.com/HuginnsHammer/CloudSentry).
 Where a document still says CloudSentry, read the same tool: the package and CLI keep their
@@ -10,7 +10,29 @@ CloudSentry is a **defensive audit trail and log-triage CLI with a separate synt
 
 **[Launch the live portal](https://csportal-brpeckhv.manus.space)** · **[What changed and the previous release](CHANGELOG.md)** · **[All guides, sources and public links](LINKS.md)**
 
-Current versions: **core 0.1.4 / portal 1.0.1**. The [changelog](CHANGELOG.md) walks through confirmed fixes, unconfirmed review claims and deliberate safety boundaries, with immutable links to the old 0.1.0 source. The public repository and separately managed website do not share customer evidence or credentials.
+Current versions: **core 0.1.5 / portal 1.0.1**. The [changelog](CHANGELOG.md) walks through confirmed fixes, unconfirmed review claims and deliberate safety boundaries, with immutable links to the old 0.1.0 source. The public repository and separately managed website do not share customer evidence or credentials.
+
+## Encrypting your own evidence
+
+`vault` seals the evidence this tool collects on your own host with ChaCha20-Poly1305,
+so a copied archive, synced folder or stolen backup is ciphertext without your key; a
+sealed manifest makes removed or substituted files visible. `synthetic` and `relay`
+accept `--tls-cert`/`--tls-key` so your own decoys serve TLS and a plaintext-only
+scanner gets no banner at all. What this does **not** do: protect evidence from an
+attacker already running code as you, erase the plaintext original, or decrypt traffic
+addressed to anyone else's service. The optional `cryptography` backend is a hard
+requirement for sealing, and it fails closed rather than using a weaker cipher.
+See [docs/encrypted-evidence.md](docs/encrypted-evidence.md).
+
+## Inspecting as little as possible
+
+Every session is recorded metadata-first: the permitted scope is stated before any byte is
+parsed, protocol metadata comes next (family, method, path, query keys, sizes), only
+allowlisted application fields are kept, secret-looking values are redacted and counted,
+and the record is bounded and carries the reason for each field it holds. Bodies and header
+values are not in it. Full payload is a separate, labelled tier you ask for with
+`--full-payloads`, and `inspect` applies the same minimisation to a capture you already have.
+See [docs/data-minimization.md](docs/data-minimization.md).
 
 ## What it does
 

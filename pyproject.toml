@@ -16,6 +16,11 @@ classifiers = [
   "Operating System :: POSIX :: Linux",
 ]
 
+[project.optional-dependencies]
+# Optional, and deliberately not required by the core: sealing refuses to run
+# without it rather than substituting a weaker cipher.
+vault = ["cryptography>=42"]
+
 [project.scripts]
 reverse-shell-decoy = "reverse_shell_decoy.cli:main"
 reverse-shell-decoy-service = "reverse_shell_decoy.honeypot:main"

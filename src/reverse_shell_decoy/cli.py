@@ -211,6 +211,12 @@ def parser() -> argparse.ArgumentParser:
         help="also record the bytes a visitor sent to this synthetic service",
     )
     synthetic_parser.add_argument(
+        "--tls-cert", default="", help="PEM certificate to serve these decoys over TLS (needs --tls-key)"
+    )
+    synthetic_parser.add_argument(
+        "--tls-key", default="", help="PEM private key for --tls-cert; plaintext fallback is never used"
+    )
+    synthetic_parser.add_argument(
         "--allow-public",
         action="store_true",
         help="bind beyond loopback; requires independently reviewed infrastructure",
@@ -243,6 +249,26 @@ def parser() -> argparse.ArgumentParser:
     relay.add_argument(
         "--full-payloads", action="store_true", help="also record the bytes the visitor sent"
     )
+    relay.add_argument(
+        "--tls-cert", default="", help="PEM certificate for the front listener (needs --tls-key)"
+    )
+    relay.add_argument(
+        "--tls-key", default="", help="PEM private key for --tls-cert; plaintext fallback is never used"
+    )
+    inspect_parser = sub.add_parser(
+        "inspect",
+        help="minimize a capture file: protocol metadata and allowlisted fields only, secrets redacted",
+    )
+    inspect_parser.add_argument("--file", required=True, help="captured JSONL or plain lines already on this host")
+    inspect_parser.add_argument("--listener", default="file:provided", help="which listener produced it")
+    inspect_parser.add_argument("--port", type=int, default=0, help="port the capture came from, for the scope record")
+    inspect_parser.add_argument("--transport", choices=["tcp", "tls"], default="tcp")
+    inspect_parser.add_argument(
+        "--full", action="store_true", help="also emit the full-payload tier as separate, clearly labelled records"
+    )
+    inspect_parser.add_argument(
+        "--limit", type=int, default=64 * 1024, help="per-record byte ceiling for the full-payload tier"
+    )
     persist = sub.add_parser("persistence", help="read-only startup/backdoor indicators, not a malware verdict")
     persist.add_argument("--root", action="append", help="authorized config directory to inspect; default cron/systemd roots")
     ingest = sub.add_parser("ingest", help="normalize pasted or explicitly selected real logs locally")
@@ -268,6 +294,19 @@ def parser() -> argparse.ArgumentParser:
     evidence.add_argument("--summary-report", help="optional previously generated cloud-summary JSON; no live account scan")
     add_log_input(evidence)
     add_optional_names(evidence)
+    vault = sub.add_parser(
+        "vault",
+        help="seal your own collected evidence with authenticated encryption, and open it again with your key",
+    )
+    vault.add_argument(
+        "action",
+        choices=["keygen", "seal", "open", "verify", "status", "manifest", "verify-manifest"],
+        help="keygen | seal | open | verify | status | manifest | verify-manifest",
+    )
+    vault.add_argument("paths", nargs="*", help="files or directories the action applies to")
+    vault.add_argument("--out", help="destination for keygen, sealed output or a manifest")
+    vault.add_argument("--key-file", default="", help="path to the 32-byte key (mode 600); else $SENTRYVANE_VAULT_KEY")
+    vault.add_argument("--force", action="store_true", help="replace an existing destination or key")
     verify = sub.add_parser("verify", help="check bundle integrity, not truth or authenticity")
     verify.add_argument("path")
     return p
@@ -431,9 +470,17 @@ def main(argv: list[str] | None = None) -> int:
                 if not selected:
                     print("no synthetic service matched the requested names", file=sys.stderr)
                     return 2
+            from .transport import TransportError, optional_context
+
+            try:
+                tls_context = optional_context(args.tls_cert or None, args.tls_key or None)
+            except TransportError as exc:
+                print(str(exc), file=sys.stderr)
+                return 2
             fleet = SyntheticFleet(
                 selected,
                 throttle=InboundThrottle(),
+                tls_context=tls_context,
                 capture_payloads=args.full_payloads,
                 allow_public=args.allow_public,
                 max_runtime=args.runtime,
@@ -470,15 +517,30 @@ def main(argv: list[str] | None = None) -> int:
             if not targets:
                 print("at least one loopback target is required", file=sys.stderr)
                 return 2
+            from .transport import TransportError, optional_context
+
+            try:
+                tls_context = optional_context(args.tls_cert or None, args.tls_key or None)
+            except TransportError as exc:
+                print(str(exc), file=sys.stderr)
+                return 2
             fleet = RelayFleet(
                 targets,
                 port=args.front_port,
+                tls_context=tls_context,
                 throttle=InboundThrottle(),
                 rotate_every_connections=args.rotate_every,
                 capture_payloads=args.full_payloads,
                 max_runtime=args.runtime,
             )
             return asyncio.run(_run_relay(fleet, args.runtime))
+        elif args.command == "inspect":
+            from .minimize import inspect_file, inspection_scope
+
+            scope = inspection_scope(
+                listener=args.listener, port=args.port, transport=args.transport, loopback_only=True
+            )
+            emit(inspect_file(args.file, scope=scope, include_full=args.full, limit=args.limit))
         elif args.command == "persistence":
             from .persistence import scan_persistence
             emit_scan(scan_persistence(args.root), args.command)
@@ -504,6 +566,62 @@ def main(argv: list[str] | None = None) -> int:
                 report["manual_summary_unverified"] = summary_input
             path = export_bundle(Path(args.output), report, read_audit(args.audit))
             print(f"Evidence ZIP created: {path}\nIncludes host OS, endpoint metadata and selected imports. Review before sharing. Nothing uploaded.")
+        elif args.command == "vault":
+            from . import __version__
+            from . import vault as vault_module
+
+            key = None
+            if args.action not in {"keygen", "status"}:
+                key = vault_module.load_key(args.key_file or None)
+            if args.action == "keygen":
+                if not args.out:
+                    print("keygen needs --out PATH", file=sys.stderr)
+                    return 2
+                emit(vault_module.keygen(args.out, force=args.force))
+            elif args.action == "seal":
+                if not args.paths:
+                    print("seal needs at least one file", file=sys.stderr)
+                    return 2
+                destination = args.out if args.out else None
+                if destination and len(args.paths) > 1:
+                    print("--out applies to a single file; seal them one at a time", file=sys.stderr)
+                    return 2
+                results = [
+                    vault_module.seal_file(key, path, destination, force=args.force, tool_version=__version__)
+                    for path in args.paths
+                ]
+                emit({"kind": "seal_results", "results": results})
+            elif args.action == "open":
+                if len(args.paths) != 1 or not args.out:
+                    print("open needs one sealed file and --out PATH", file=sys.stderr)
+                    return 2
+                emit(vault_module.open_file(key, args.paths[0], args.out, force=args.force))
+            elif args.action == "verify":
+                if not args.paths:
+                    print("verify needs at least one sealed file", file=sys.stderr)
+                    return 2
+                emit({"kind": "verify_results", "results": [vault_module.verify_file(key, p) for p in args.paths]})
+            elif args.action == "status":
+                emit(vault_module.status(args.paths or ["."]))
+            elif args.action == "manifest":
+                if not args.out or not args.paths:
+                    print("manifest needs sealed files and --out PATH", file=sys.stderr)
+                    return 2
+                blob = vault_module.build_manifest(key, args.paths, tool_version=__version__)
+                Path(args.out).write_bytes(blob)
+                emit({
+                    "kind": "manifest_written",
+                    "manifest": args.out,
+                    "entries": len(args.paths),
+                    "note": "a manifest makes removal or substitution of a sealed file visible on verification",
+                })
+            elif args.action == "verify-manifest":
+                if not args.paths:
+                    print("verify-manifest needs a manifest path", file=sys.stderr)
+                    return 2
+                result = vault_module.verify_manifest(key, args.paths[0])
+                emit(result)
+                return 0 if result.get("intact") else 1
         elif args.command == "verify":
             from .evidence import verify_bundle
             result = verify_bundle(args.path)

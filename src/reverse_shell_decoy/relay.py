@@ -186,6 +186,7 @@ DEFAULT_PRESENTATIONS: Tuple[Presentation, ...] = (
 class _RelaySession:
     session_id: str
     peer: str
+    transport: str
     target: str
     target_port: int
     presentation: str
@@ -218,6 +219,7 @@ class RelayFleet:
         max_runtime: float = 600.0,
         throttle: Optional[InboundThrottle] = None,
         capture_payloads: bool = False,
+        tls_context: Optional[Any] = None,
         record_limit: int = MAX_RECORDS,
     ) -> None:
         if not targets:
@@ -263,6 +265,8 @@ class RelayFleet:
 
         self.records: List[Dict[str, Any]] = []
         self._server: Optional[asyncio.AbstractServer] = None
+        self._tls = tls_context
+        self.transport = "tls" if tls_context is not None else "tcp"
         self._sessions: Dict[str, _RelaySession] = {}
         self._tasks: set[asyncio.Task[None]] = set()
         self._connections = 0
@@ -279,11 +283,14 @@ class RelayFleet:
         if self._server is not None:
             return
         self._rotation_started = time.monotonic()
-        self._server = await asyncio.start_server(self._handle, host=self.host, port=self.port)
+        self._server = await asyncio.start_server(
+            self._handle, host=self.host, port=self.port, ssl=self._tls
+        )
         self._runtime_handle = asyncio.create_task(self._watch_runtime())
         self._record(
             {
                 "kind": "relay_started",
+                "transport": self.transport,
                 "front_host": self.host,
                 "front_port": self.bound_port,
                 "targets": [
@@ -417,6 +424,7 @@ class RelayFleet:
             session = _RelaySession(
                 session_id=f"relay-{self._connections:05d}",
                 peer=peer,
+                transport=self.transport,
                 target=target.name,
                 target_port=target.port,
                 presentation=presentation.name,
@@ -430,6 +438,7 @@ class RelayFleet:
                     "kind": "relay_connected",
                     "session_id": session.session_id,
                     "peer": peer,
+                    "transport": self.transport,
                     "target": target.name,
                     "target_port": target.port,
                     "presentation": presentation.name,
@@ -583,6 +592,7 @@ class RelayFleet:
             "kind": "relay_session",
             "session_id": session.session_id,
             "peer": session.peer,
+            "transport": session.transport,
             "target": session.target,
             "target_port": session.target_port,
             "presentation": session.presentation,

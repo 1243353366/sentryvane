@@ -237,6 +237,9 @@ class _Session:
     service: str
     port: int
     peer: str
+    transport: str
+    scope: Dict[str, Any]
+    opening: bytes
     opened_at: float
     opened_utc: str
     bytes_in: int = 0
@@ -260,7 +263,9 @@ class _Session:
             self.gap_samples += 1
         self.last_arrival = now
 
-    def close_record(self, now: float, reason: str, capture: Optional[bytes] = None) -> Dict[str, Any]:
+    def close_record(
+        self, now: float, reason: str, capture: Optional[bytes] = None, started_at: float = 0.0
+    ) -> Dict[str, Any]:
         duration_ms = int((now - self.opened_at) * 1000)
         mean_gap = int(self.total_gap_ms / self.gap_samples) if self.gap_samples else 0
         record: Dict[str, Any] = {
@@ -272,6 +277,7 @@ class _Session:
             "service": self.service,
             "port": self.port,
             "peer": self.peer,
+            "transport": self.transport,
             "opened_at_utc": self.opened_utc,
             "duration_ms": duration_ms,
             "closed_reason": reason,
@@ -287,7 +293,19 @@ class _Session:
             "authenticated_anything": False,
             "stored_anything": False,
         }
+        from .minimize import build_record
+
+        record["inspection"] = build_record(
+            scope=self.scope,
+            opening=self.opening,
+            bytes_in=self.bytes_in,
+            frames=self.lines,
+            duration_ms=duration_ms,
+            peer=self.peer,
+            payload=capture,
+        )
         if capture is not None:
+            record["payload_tier"] = "full"
             record["captured_bytes"] = len(capture)
             record["capture_sha256"] = hashlib.sha256(capture).hexdigest()
             record["payload_b64"] = _b64(capture)
@@ -332,6 +350,7 @@ class SyntheticFleet:
         throttle: Optional[InboundThrottle] = None,
         capture_payloads: bool = False,
         allow_ephemeral_ports: bool = False,
+        tls_context: Optional[Any] = None,
     ) -> None:
         if not services:
             raise SyntheticDecoyError("at least one synthetic service is required")
@@ -391,6 +410,19 @@ class SyntheticFleet:
         self._stopping = False
         self._stop_reason = ""
         self._actual_ports: Dict[str, int] = {}
+        self._tls = tls_context
+        self.transport = "tls" if tls_context is not None else "tcp"
+
+    def _inspection_scope(self, service: SyntheticService, peer: str) -> Dict[str, Any]:
+        from .minimize import inspection_scope
+
+        return inspection_scope(
+            listener="synthetic:%s" % service.name,
+            port=self._actual_ports.get(service.name, service.port),
+            transport=self.transport,
+            loopback_only=self.host in {"127.0.0.1", "::1", "localhost"},
+            reviewed_public=bool(getattr(self, "reviewed_public", False)),
+        )
 
     # -- lifecycle -------------------------------------------------------
     async def start(self) -> None:
@@ -403,6 +435,7 @@ class SyntheticFleet:
                 host=self.host,
                 port=service.port,
                 limit=MAX_LINE_BYTES,
+                ssl=self._tls,
             )
             self._servers.append(server)
             bound = server.sockets[0].getsockname()[1] if server.sockets else service.port
@@ -416,6 +449,7 @@ class SyntheticFleet:
                 "loopback_only": self.host in {"127.0.0.1", "::1", "localhost"},
                 "paced": self.throttle is not None,
                 "capture_payloads": self.capture_payloads,
+                "transport": self.transport,
             }
         )
 
@@ -539,6 +573,9 @@ class SyntheticFleet:
             self._connection_count += 1
             self._session_counter += 1
             session = _Session(
+                transport=self.transport,
+                scope=self._inspection_scope(service, peer),
+                opening=b"",
                 session_id=f"synthetic-{self._session_counter:05d}",
                 service=service.name,
                 port=self._actual_ports.get(service.name, service.port),
@@ -582,6 +619,8 @@ class SyntheticFleet:
                 if len(line) > MAX_LINE_BYTES:
                     reason = "line length limit"
                     break
+                if not session.opening:
+                    session.opening = bytes(line)
                 session.note_arrival(time.monotonic())
                 session.bytes_in += len(line)
                 session.lines += 1

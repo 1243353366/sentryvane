@@ -2,6 +2,47 @@
 
 The core Python package and browser portal have separate versions. A public source push, saved portal checkpoint, completed CI run and live publication are different events. Historical results below describe their named source scope, not production containment or every later commit.
 
+## Core 0.1.5 — 2026-11-01
+
+Two releases of restraint: evidence that is encrypted, and evidence that is barely there.
+551 to 617 tests.
+
+**Encrypted evidence on your own machine.**
+
+1. **Sealed evidence (`vault`).** ChaCha20-Poly1305 per file, with the header as associated
+   data: version, timestamps, stream, index, plaintext length and SHA-256, source label and a
+   non-secret key fingerprint. `seal`, `open`, `verify`, `status`, `manifest`,
+   `verify-manifest`. Tampering, truncation, a different key and a substituted file each fail
+   with their own message.
+2. **Key handling that fails closed.** A group- or world-readable key is refused, a symlinked
+   key is refused, a missing encryption backend is an error, and the tool never writes the key.
+3. **Honest gaps in the output.** `vault status` names every plaintext file it can still see;
+   every seal result records that the plaintext original survived.
+4. **TLS on the decoys you own.** `synthetic` and `relay` accept `--tls-cert`/`--tls-key`.
+   Sessions record `"transport": "tls"` and the certificate fingerprint. A plaintext client now
+   receives no banner at all; half a configuration or a mismatched pair is refused.
+5. **The limit, where it matters.** Encryption at rest does not stop an attacker already
+   running code as you. `docs/encrypted-evidence.md` says that first.
+
+**Metadata-first inspection (`inspect`).**
+
+6. **Scope before parsing.** `inspection_scope()` records the basis for reading bytes at all:
+   a listener this tool started on this host, loopback or reviewed public, inside a bounded
+   window. Everything else is listed as not permitted, with a reason, inside every record.
+7. **Protocol metadata only.** HTTP method/path/query keys/version, SSH protocol and software,
+   SMTP verb, top-level line-protocol command. Bodies, header values and query values are
+   never parsed into the record; an unrecognised opening is stored as a digest.
+8. **Allowlist with reasons.** Each kept field carries the question it answers; anything not on
+   `minimize.ALLOWLIST` is dropped. Bounds are 120-char values, 24 fields, 12 redaction entries,
+   4096-byte window, all reported in the record.
+9. **Redaction that is counted, not stored.** Bearer/basic tokens, API-style keys, AWS key ids,
+   JWTs, private-key blocks, password assignments, emails and long opaque blobs. Peers keep a
+   /24 prefix plus a stable id; the record says which rules fired and how often.
+10. **Full payload as a separate tier.** `--full-payloads` production is labelled
+    `"payload_tier": "full"`; `inspect --full` emits separate `tier: "full"` records with a byte
+    ceiling, a `truncated` flag, the digest of the untruncated bytes and a warning naming what
+    it contains.
+
 ## Core 0.1.4 — 2026-11-01
 
 Observer-integrity release. Adds four capabilities and one honest limit: what the host says
