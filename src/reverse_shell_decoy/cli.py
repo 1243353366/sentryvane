@@ -255,6 +255,19 @@ def parser() -> argparse.ArgumentParser:
     relay.add_argument(
         "--tls-key", default="", help="PEM private key for --tls-cert; plaintext fallback is never used"
     )
+    harden = sub.add_parser("harden", help="prevention: compare bound listeners to a declared allowlist, and plan hardening")
+    harden.add_argument("action", choices=["verify", "plan"], help="verify listeners against the policy, or print the hardening steps")
+    harden.add_argument("--policy", required=True, help="listener policy JSON: allow entries with executable, ports, exposure, reason")
+    harden.add_argument("--proc-root", default="/proc", help="alternate procfs root, for tests and containers")
+
+    contain = sub.add_parser("contain", help="containment: make one unwanted listener ineffective, with its collateral")
+    contain.add_argument("action", choices=["plan", "apply", "rollback", "verify"])
+    contain.add_argument("--port", type=int, help="port to contain")
+    contain.add_argument("--pid", type=int, help="process id to contain (plan only)")
+    contain.add_argument("--policy", help="listener policy JSON, so allowlisted ports are refused")
+    contain.add_argument("--confirm", action="store_true", help="required for apply: this changes firewall state")
+    contain.add_argument("--proc-root", default="/proc")
+
     guarantees = sub.add_parser(
         "guarantees",
         help="check the seven containment properties against the listeners, and say which are unverified",
@@ -542,6 +555,44 @@ def main(argv: list[str] | None = None) -> int:
                 max_runtime=args.runtime,
             )
             return asyncio.run(_run_relay(fleet, args.runtime))
+        elif args.command == "harden":
+            from .harden import load_policy, prevention_plan, verify_policy
+            from .listeners import scan_listeners
+
+            policy = load_policy(args.policy)
+            if args.action == "plan":
+                emit(prevention_plan(policy))
+            else:
+                inventory = scan_listeners(proc_root=args.proc_root)
+                listeners = inventory.get("listeners", []) if isinstance(inventory, dict) else []
+                result = verify_policy(listeners, policy)
+                emit(result)
+                return 0 if result["verdict"] == "clean" else 1
+        elif args.command == "contain":
+            from .harden import HardenError, apply_port_block, contain_plan, load_policy, rollback_port_block
+            from .listeners import scan_listeners
+
+            policy = load_policy(args.policy) if args.policy else None
+            if args.action == "plan":
+                inventory = scan_listeners(proc_root=args.proc_root)
+                listeners = inventory.get("listeners", []) if isinstance(inventory, dict) else []
+                emit(
+                    contain_plan(
+                        port=args.port, pid=args.pid, policy=policy, listeners=listeners, proc_root=args.proc_root
+                    )
+                )
+            elif args.action == "apply":
+                if args.port is None:
+                    raise HardenError("apply needs --port; process-scoped tiers are printed, not applied")
+                emit(apply_port_block(args.port, confirm=args.confirm, policy=policy))
+            elif args.action == "rollback":
+                if args.port is None:
+                    raise HardenError("rollback needs --port")
+                emit(rollback_port_block(port=args.port))
+            else:
+                if args.port is None:
+                    raise HardenError("verify needs --port")
+                emit({"kind": "containment_verify", "port": args.port, "note": "run the plan's own verify command; this reports state, not intent"})
         elif args.command == "guarantees":
             from .guarantees import audit
 

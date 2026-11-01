@@ -2,6 +2,30 @@
 
 The core Python package and browser portal have separate versions. A public source push, saved portal checkpoint, completed CI run and live publication are different events. Historical results below describe their named source scope, not production containment or every later commit.
 
+## Core 0.1.7 — 2026-11-01
+
+Prevention and containment, with the refusal as the feature. 639 to 668 tests.
+
+1. **A listener policy you can argue with (`harden`).** Allow entries carry executable, ports,
+   exposure and a required reason. `verify` compares them to what is actually bound and yields
+   one verdict per listener: approved, unlisted, unexpected-port, unexpected-exposure, or
+   unattributed. Unattributed is reported as unknown, and an empty inventory is `unknown`
+   rather than `clean`.
+2. **A prevention plan, not a prevention action.** Default-deny inbound with explicit accepts,
+   a raised unprivileged port floor, auditd `bind()` logging, per-unit socket restriction and a
+   scheduled verification. Every step names its collateral and its undo; the tool prints them
+   and runs none of them.
+3. **Containment in three tiers (`contain`).** Port (inbound, one port), cgroup (one process's
+   sockets) and uid (one account). The plan recommends the smallest safe tier and marks the
+   others unsafe with the fact that blocked it; a shared cgroup is never called
+   process-scoped.
+4. **Hard refusals.** An allowlisted port is refused, `apply` needs `--confirm`, `apply` needs
+   root, `port` and `pid` cannot be combined, and an absent pid is an error. Applying writes a
+   0600 undo record before it changes anything; `rollback` drops the shared table and clears it.
+5. **Scope.** No process is killed or suspended, no other program's files are touched, and
+   nothing acts on a host that is not this one. The rule is inbound only, so an established
+   outbound connection is untouched, and the docs say so where containment is chosen.
+
 ## Core 0.1.6 — 2026-11-01
 
 The containment properties, turned from a description into a check. 617 to 639 tests.

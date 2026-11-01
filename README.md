@@ -1,6 +1,6 @@
 # Sentryvane: defensive triage and bounded decoys
 
-**Current version: 0.1.6, released 2026-11-01.** Sentryvane is the current version of the
+**Current version: 0.1.7, released 2026-11-01.** Sentryvane is the current version of the
 CloudSentry line. Earlier CloudSentry releases stay in this repository's history and the
 original upstream project remains at [@HuginnsHammer/CloudSentry](https://github.com/HuginnsHammer/CloudSentry).
 Where a document still says CloudSentry, read the same tool: the package and CLI keep their
@@ -10,7 +10,7 @@ CloudSentry is a **defensive audit trail and log-triage CLI with a separate synt
 
 **[Launch the live portal](https://csportal-brpeckhv.manus.space)** · **[What changed and the previous release](CHANGELOG.md)** · **[All guides, sources and public links](LINKS.md)**
 
-Current versions: **core 0.1.6 / portal 1.0.1**. The [changelog](CHANGELOG.md) walks through confirmed fixes, unconfirmed review claims and deliberate safety boundaries, with immutable links to the old 0.1.0 source. The public repository and separately managed website do not share customer evidence or credentials.
+Current versions: **core 0.1.7 / portal 1.0.1**. The [changelog](CHANGELOG.md) walks through confirmed fixes, unconfirmed review claims and deliberate safety boundaries, with immutable links to the old 0.1.0 source. The public repository and separately managed website do not share customer evidence or credentials.
 
 ## Encrypting your own evidence
 
@@ -23,6 +23,17 @@ attacker already running code as you, erase the plaintext original, or decrypt t
 addressed to anyone else's service. The optional `cryptography` backend is a hard
 requirement for sealing, and it fails closed rather than using a weaker cipher.
 See [docs/encrypted-evidence.md](docs/encrypted-evidence.md).
+
+## Prevention and containment, on your own machine
+
+`harden verify` compares bound listeners against a written allowlist (executable, port,
+exposure, and a reason for every entry) and reports drift, with unattributed listeners as
+unknown rather than allowed. `harden plan` prints the OS-level steps that make an undeclared
+bind hard, each with what it breaks and how to undo it. `contain` then makes one unwanted
+listener ineffective at the smallest tier that works: a single inbound port block it can
+apply and roll back, or process- and account-scoped rules printed with their collateral
+counted. It never kills a process or edits another program's files.
+See [docs/prevention-and-containment.md](docs/prevention-and-containment.md).
 
 ## Seven properties, checked rather than claimed
 
