@@ -1,10 +1,16 @@
-# CloudSentry: defensive triage and bounded decoys
+# Sentryvane: defensive triage and bounded decoys
+
+**Current version: 0.1.4, released 2026-11-01.** Sentryvane is the current version of the
+CloudSentry line. Earlier CloudSentry releases stay in this repository's history and the
+original upstream project remains at [@HuginnsHammer/CloudSentry](https://github.com/HuginnsHammer/CloudSentry).
+Where a document still says CloudSentry, read the same tool: the package and CLI keep their
+published names `reverse-shell-decoy` so existing installs and logs stay valid.
 
 CloudSentry is a **defensive audit trail and log-triage CLI with a separate synthetic terminal and bounded byte echo**, plus a keyless browser portal for reviewing customer-selected JSON results. It helps inspect authorized evidence, preserve tamper-evident audit trails, and explain observations without executing untrusted commands or granting host access. The core package is strictly passive: it performs zero active network probing, scanning, or callbacks.
 
 **[Launch the live portal](https://csportal-brpeckhv.manus.space)** · **[What changed and the previous release](CHANGELOG.md)** · **[All guides, sources and public links](LINKS.md)**
 
-Current versions: **core 0.1.3 / portal 1.0.1**. The [changelog](CHANGELOG.md) walks through confirmed fixes, unconfirmed review claims and deliberate safety boundaries, with immutable links to the old 0.1.0 source. The public repository and separately managed website do not share customer evidence or credentials.
+Current versions: **core 0.1.4 / portal 1.0.1**. The [changelog](CHANGELOG.md) walks through confirmed fixes, unconfirmed review claims and deliberate safety boundaries, with immutable links to the old 0.1.0 source. The public repository and separately managed website do not share customer evidence or credentials.
 
 ## What it does
 

@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "reverse-shell-decoy"
 dynamic = ["version"]
-description = "Read-only reverse-shell suspicion detector, networkless decoy terminal, and evidence exporter"
+description = "Sentryvane: read-only reverse-shell suspicion detector, networkless decoy terminal, observer-integrity checks and evidence exporter"
 readme = "README.md"
 requires-python = ">=3.10"
 license = {text = "Apache-2.0"}
