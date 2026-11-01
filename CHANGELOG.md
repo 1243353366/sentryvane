@@ -2,6 +2,29 @@
 
 The core Python package and browser portal have separate versions. A public source push, saved portal checkpoint, completed CI run and live publication are different events. Historical results below describe their named source scope, not production containment or every later commit.
 
+## Core 0.1.6 — 2026-11-01
+
+The containment properties, turned from a description into a check. 617 to 639 tests.
+
+1. **`guarantees`.** Seven properties, each with the mechanism that enforces it, the
+   observation that demonstrates it and the limit that remains: connection, no host-resource
+   access, no unrestricted relay, no command execution, synthetic responses, throttle and
+   termination, evidence. `verified` requires a mechanism *and* an observation.
+2. **A live probe that misbehaves on purpose.** Loopback only, ephemeral ports: connect, then
+   send `cat /etc/passwd` with a canary path, `id`, `$(...)`, backticks and a `CONNECT`
+   request, then flood the listener to force throttle denials. It reports what came back and
+   reads the records it produced.
+3. **A static capability scan.** AST walk over the reachable listener modules counting
+   `subprocess.*`, `os.system`, `os.popen`, `os.exec*`, `pty.spawn`, `eval`, `exec`, `compile`
+   and `__import__`. Non-literal `open()` arguments are listed separately, because that is the
+   shape a peer-input-becomes-a-path bug takes. Network calls are counted apart from execution:
+   the relay opens exactly one, to its loopback backend.
+4. **Failing loudly.** A leaked canary, shell output in a response or a relay that accepts a
+   remote target marks the property `failed` and the process exits non-zero. Without a probe,
+   properties are `unverified`, never `verified`.
+5. **The limit, once.** None of the seven survives a host that is already fully compromised;
+   the report says so rather than letting a green table imply containment.
+
 ## Core 0.1.5 — 2026-11-01
 
 Two releases of restraint: evidence that is encrypted, and evidence that is barely there.

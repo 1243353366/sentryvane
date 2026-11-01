@@ -255,6 +255,14 @@ def parser() -> argparse.ArgumentParser:
     relay.add_argument(
         "--tls-key", default="", help="PEM private key for --tls-cert; plaintext fallback is never used"
     )
+    guarantees = sub.add_parser(
+        "guarantees",
+        help="check the seven containment properties against the listeners, and say which are unverified",
+    )
+    guarantees.add_argument(
+        "--no-probe", action="store_true", help="static capability scan only; every live property reports unverified"
+    )
+    guarantees.add_argument("--timeout", type=float, default=6.0, help="per-operation ceiling for the loopback probe")
     inspect_parser = sub.add_parser(
         "inspect",
         help="minimize a capture file: protocol metadata and allowlisted fields only, secrets redacted",
@@ -534,6 +542,12 @@ def main(argv: list[str] | None = None) -> int:
                 max_runtime=args.runtime,
             )
             return asyncio.run(_run_relay(fleet, args.runtime))
+        elif args.command == "guarantees":
+            from .guarantees import audit
+
+            result = audit(run_probe=not args.no_probe, timeout=args.timeout)
+            emit(result)
+            return 0 if result["summary"]["verdict"] == "verified" else 1
         elif args.command == "inspect":
             from .minimize import inspect_file, inspection_scope
 
