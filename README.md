@@ -182,3 +182,7 @@ PYTHONPATH=src python3 -m unittest discover -s tests -v
 The current [review findings](docs/review-8-findings.md) distinguish reproduced defects, deliberate boundaries, tested claims and remaining gaps. The [changelog](CHANGELOG.md) keeps previous releases and test scopes separate. A triage tool can miss short-lived, hidden, encrypted or namespace-isolated activity; neither a positive indicator nor an empty report is definitive. See [SECURITY.md](SECURITY.md), [trust model](docs/threat-model.md) and [secret-scanning requirements](docs/secret-scanning.md). Job failure blocks merging only when a separate repository ruleset requires the check; no branch-protection claim is implied.
 
 Original CloudSentry code and documentation are **[Apache-2.0](LICENSE)** except where component notices apply. The bundled auditor remains **MIT-licensed** under its unchanged [upstream license](integrations/config-auditor/LICENSE). Dependencies and assets retain their terms. [NOTICE](NOTICE) preserves attribution; [licenses/MIT-legacy.txt](licenses/MIT-legacy.txt) preserves the previous root notice and does not withdraw existing grants.
+
+---
+
+Thanks for reading. More of my work: [github.com/1243353366](https://github.com/1243353366).
